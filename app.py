@@ -1,3 +1,173 @@
+<<<<<<< HEAD
+import logging
+import spotipy
+from spotipy.oauth2 import SpotifyClientCredentials
+import lyricsgenius
+import pandas as pd
+import pickle
+import re
+from flask import Flask, request, render_template
+
+# Setup logging
+logging.basicConfig(level=logging.DEBUG)
+
+# Replace with your Genius API Access Token
+GENIUS_ACCESS_TOKEN = "Qb95YJ2NpRCxYMB7At9ulTEnxr_HLflxACNFAIkgD9e1JdV4EjbaYzJxRO7heDFn"
+
+# Initialize the Genius API client
+genius = lyricsgenius.Genius(GENIUS_ACCESS_TOKEN)
+
+# Load models
+df = pickle.load(open('df.pkl', 'rb'))
+similarity = pickle.load(open('similarity.pkl', 'rb'))
+
+# Spotify API credentials
+client_id = "a339cc448e49480e940ce1ebd8ddd9b3"
+client_secret = "4ea98e0f9a0647998d82c8edf89bf59a"
+
+# Authenticate with Spotify API
+client_credentials_manager = SpotifyClientCredentials(client_id=client_id, client_secret=client_secret)
+sp = spotipy.Spotify(client_credentials_manager=client_credentials_manager)
+
+# Function to search songs on Spotify
+def search_songs(query, limit=10):
+    results = sp.search(q=query, type='track', limit=limit)
+    tracks = []
+
+    seen_tracks = set()  # To track unique tracks
+
+    for item in results['tracks']['items']:
+        track = {
+            'id': item['id'],
+            'name': item['name'],
+            'artist': ", ".join([artist['name'] for artist in item['artists']]),
+            'album': item['album']['name'],
+            'release_date': item['album']['release_date'],
+            'popularity': item['popularity']
+            
+        }
+
+        # Clean song name and artist for deduplication
+        cleaned_name = re.sub(r'(\(.*\))', '', track['name']).strip()
+        cleaned_artist = re.sub(r'(\[.*\])', '', track['artist']).strip()
+
+        # Create a unique signature
+        track_signature = (cleaned_name, cleaned_artist, track['album'], track['release_date'])
+
+        if track_signature not in seen_tracks:
+            tracks.append(track)
+            seen_tracks.add(track_signature)
+
+    return tracks
+
+def get_song_metadata(track_id):
+    features = sp.audio_features(track_id)[0]  # Fetch audio features for the track
+    metadata = {
+        'danceability': features['danceability'],
+        'energy': features['energy'],
+        'tempo': features['tempo'],
+        'key': features['key'],
+        'mode': features['mode'],  # Mode 0 = Minor, 1 = Major
+        'acousticness': features['acousticness'],
+        'instrumentalness': features['instrumentalness'],
+        'liveness': features['liveness'],
+        'valence': features['valence'],
+    }
+    return metadata
+
+
+# Function to fetch lyrics using Genius API
+def fetch_lyrics(spotify_track_name):
+    genius_songs = genius.search(spotify_track_name, per_page=1)
+    logging.debug("Genius Search Results: %s", genius_songs)
+    if genius_songs and len(genius_songs) > 0:
+        song_id = genius_songs[0]['id']
+        lyrics = genius.song(song_id)['song']['lyrics'] if 'lyrics' in genius.song(song_id)['song'] else "Lyrics not found"
+    else:
+        lyrics = "Lyrics not found"
+    return lyrics
+
+# Function to recommend songs
+def recommendation(user_song, spotify_limit=10):
+    # Search songs from Spotify
+    spotify_songs = search_songs(user_song, limit=spotify_limit)
+
+    if not spotify_songs:
+        return None  # No results from Spotify
+    
+    recommendations = []
+    for song in spotify_songs:
+        song_name = song['name'].strip()  # Clean song name
+        artist_name = ", ".join(artist.strip() for artist in song['artist'].split(','))  # Clean artist name(s)
+        song_link = f"https://open.spotify.com/track/{song['id']}"  # Spotify link
+        
+        # Format output as [Song Name] by [Artist Name]
+        formatted_output = f"<a href='{song_link}' target='_blank'>{song_name} by {artist_name}</a>"
+        
+        recommendations.append(formatted_output)
+
+    return recommendations
+
+
+
+
+# Function to fetch combined data (Spotify and Genius)
+def fetch_combined_data(song_query, spotify_limit=10, genius_limit=1):
+    # Fetch data from Spotify
+    spotify_songs = search_songs(song_query, limit=spotify_limit)
+    combined_data = []
+
+    for song in spotify_songs:
+        # Fetch Genius lyrics if available
+        genius_songs = genius.search(song['name'], per_page=genius_limit)
+        if genius_songs:
+            genius_song = genius_songs[0]  # Use the first Genius result
+            lyrics = fetch_lyrics(genius_song['name'])  # Fetch lyrics from Genius
+        else:
+            lyrics = "Lyrics not found"
+
+        # Add Spotify and Genius data to the combined dataset
+        song_data = {
+            'spotify_id': song['id'],
+            'name': song['name'],
+            'artist': song['artist'],
+            'album': song['album'],
+            'release_date': song['release_date'],
+            'popularity': song['popularity'],
+            'lyrics': lyrics
+        }
+        combined_data.append(song_data)
+
+    return pd.DataFrame(combined_data)
+
+# Initialize Flask app
+app = Flask(__name__)
+
+# Route to render the home page
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+# Route to handle song recommendation request
+@app.route('/recom', methods=['POST'])
+def recommend_songs():
+    user_song = request.form.get('song_name')  # Safely get the song name from form input
+
+    if not user_song:
+        return render_template('index.html', error="Please provide a song name.")
+    
+    user_song = user_song.strip()
+    songs = recommendation(user_song)
+
+    if songs:
+        return render_template('index.html', selected_song=user_song, songs=songs)
+    else:
+        return render_template('index.html', error="Song not found! Please try a different name.")
+
+# Run the Flask app
+if __name__ == "__main__":
+    app.run(debug=True, port=8000)
+=======
 from flask import Flask, render_template, request, jsonify
 import cv2
 import os
@@ -165,3 +335,4 @@ def fetch_music_based_on_emotion(emotion, access_token):
 # Run the Flask server
 if __name__ == "__main__":
     app.run(debug=True)
+>>>>>>> 959822c7f7afc54d2162c8e4cee71b9f2b8c5019
