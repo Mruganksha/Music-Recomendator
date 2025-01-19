@@ -30,7 +30,7 @@ SPOTIFY_CLIENT_SECRET=your_client_secret
 Run the application:
 
 bash Copy Edit python app.py
-Access the application at http://127.0.0.1:5000 in your browser.
+
 
 How It Works Emotion Detection:
 
