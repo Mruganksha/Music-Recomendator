@@ -39,7 +39,7 @@ Clone the repository:
 bash
 Copy
 Edit
-git clone https://github.com/yourusername/moodify.git  
+git clone https://github.com/Mruganksha/Music-Recomendator.git  
 cd moodify  
 Create and activate a virtual environment:
 
