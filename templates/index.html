@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emotion-Based Music Recommender</title>
+    <style>
+        /* Global Styles */
+        body {
+            font-family: 'Poppins', Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            min-height: 100vh;
+            background: linear-gradient(to bottom, #89f7fe, #66a6ff);
+            overflow-y: auto;
+            color: #fff;
+        }
+
+        h1 {
+            font-size: 3.5rem;
+            text-shadow: 3px 3px 8px rgba(0, 0, 0, 0.7);
+            margin-bottom: 30px;
+            font-weight: bold;
+            animation: fadeIn 1.5s ease-in-out;
+        }
+
+        button {
+            padding: 12px 25px;
+            margin: 10px;
+            font-size: 18px;
+            color: #fff;
+            background-color: black;
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: transform 0.3s ease, background-color 0.3s ease;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        button:hover {
+            background-color: #192679;
+            transform: scale(1.1);
+        }
+
+        #video-container {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        video {
+            width: 80%;
+            max-width: 600px;
+            border: 2px solid #ccc;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        canvas {
+            display: none;
+        }
+
+        #emotion-output, #music-output {
+            margin-top: 20px;
+            text-align: center;
+            font-size: 22px; 
+            font-weight: bold;
+            animation: slideIn 1s ease-out;
+        }
+
+        ul {
+            list-style: none;
+            padding: 0;
+            margin-top: 15px;
+            margin-bottom: 30px;
+        }
+
+        li {
+            margin: 5px 0;
+            font-size: 18px;
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            0% {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            100% {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes slideIn {
+            0% {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            100% {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Emotion-Based Music Recommender</h1>
+    <button onclick="openCamera()">Capture Image</button>
+    <button onclick="preprocessImage()">Preprocess Image</button>
+    <button onclick="detectEmotion()">Detect Emotion</button>
+    <div id="emotion-output"></div>
+    <button onclick="recommendMusic()">Recommend Music</button>
+    <div id="music-output"></div>
+
+    <!-- Video and Canvas Elements -->
+    <div id="video-container">
+        <video id="camera" autoplay></video>
+        <button onclick="captureImage()">Capture</button>
+        <canvas id="snapshot"></canvas>
+    </div>
+
+    <script>
+        let videoStream;
+
+        // Function to open the camera
+        async function openCamera() {
+            const videoContainer = document.getElementById("video-container");
+            const video = document.getElementById("camera");
+
+            try {
+                videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                video.srcObject = videoStream;
+                videoContainer.style.display = "flex";
+
+                document.addEventListener('keydown', captureOnKeyPress);
+            } catch (error) {
+                alert("Unable to access camera. Please allow camera permissions.");
+            }
+        }
+
+        // Function to capture the image when 'S' or 'Enter' is pressed
+function captureOnKeyPress(event) {
+    if (event.key === 's' || event.key === 'Enter') {
+        captureImage(); // Capture the image
+        document.removeEventListener('keydown', captureOnKeyPress); // Remove the event listener after capturing
+    }
+}
+
+       // Function to capture the image from the video stream
+async function captureImage() {
+    const video = document.getElementById("camera");
+    const canvas = document.getElementById("snapshot");
+    const videoContainer = document.getElementById("video-container");
+
+    const context = canvas.getContext("2d");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    // Stop the camera stream and hide the video container
+    videoStream.getTracks().forEach(track => track.stop());
+    videoContainer.style.display = "none";
+
+    // Convert the captured image to a data URL
+    const imageData = canvas.toDataURL("image/png");
+
+    // Send the image to the server for processing
+    const response = await fetch('/capture', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: imageData })
+    });
+
+    const data = await response.json();
+    alert(data.message || data.error);
+}
+
+        async function preprocessImage() {
+            const response = await fetch('/preprocess', { method: 'POST' });
+            const data = await response.json();
+            alert(data.message || data.error);
+        }
+
+        async function detectEmotion() {
+            const response = await fetch('/detect_emotion', { method: 'POST' });
+            const data = await response.json();
+            if (data.error) {
+                alert(data.error);
+            } else {
+                document.getElementById("emotion-output").innerText = `Detected Emotion: ${data.dominant_emotion}`;
+            }
+        }
+
+        async function recommendMusic() {
+            const dominantEmotion = document.getElementById("emotion-output").innerText.split(": ")[1];
+            const response = await fetch('/recommend_music', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ dominant_emotion: dominantEmotion })
+            });
+            const data = await response.json();
+            if (data.error) {
+                alert(data.error);
+            } else {
+                let musicList = "<h2>Recommended Songs:</h2><ul>";
+                data.tracks.forEach(track => {
+                    musicList += `<li>
+                            <img src="${track.image}" alt="${track.name}" style="width: 50px; height: 50px; margin-right: 10px;">
+                            <a href="${track.url}" target="_blank">${track.name} by ${track.artist}</a>
+                        </li>`;
+                });
+                musicList += "</ul>";
+                document.getElementById("music-output").innerHTML = musicList;
+            }
+        }
+    </script>
+</body>
+</html>
